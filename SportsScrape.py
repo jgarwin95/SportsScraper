@@ -14,10 +14,15 @@ class SportsScraper:
         '''Receive website reponse'''
         return self.session.get(link)
 
-    def get_boxscores(self, date, advanced=False, to_csv=False):
+    def get_boxscores(self, date, advanced=False, to_csv=False, single_file=False, aggregate_by=False):
         '''Retreieve advanced or basic NBA boxscores from specified date. Display scores only or display and save to CSVs'''
         from datetime import datetime
         from bs4 import BeautifulSoup
+
+        self._general_basic_column_labels = ['Player Name','MP','FG','FGA','FG%','3P','3PA','3P%','FT','FTA','FT%',
+        'ORB','DRB','TRB','AST','STL','BLK','TOV','PF','PTS','+/-']
+        self._general_advanced_column_labels = ['Player Name','MP','TS%','eFG%','3PAr','FTr','ORB%','DRB%','TRB%',
+        'AST%','STL%','BLK%','TOV%','USG%','ORtg','DRtg','BPM']
 
         date = datetime.strptime(date, '%b %d, %Y')                 # generate datetime object from input date.
         box_score_link = self._boxscore_format(date)                # find specific boxscore page using parsed input date
@@ -25,6 +30,24 @@ class SportsScraper:
 
         # grab embedded individual boxscore links. Stored as list: boxscore_links
         boxscore_links = self.website.html.find('table.teams tbody tr td a', containing='Final') 
+
+
+        # depending on state of aggregate_by, the column labels submitted to _write_csv() are different.
+        if (single_file == True) and (aggregate_by == True) and (to_csv == True ) and (advanced == False):          # team aggregate and basic stats case
+            agg_title = 'Team_Totals_Basic_boxscores_' + date.strftime('%b_%d_%Y') + '.csv'
+            self._write_csv(agg_title, ['Date', 'Team Name'] + self._general_basic_column_labels[1:][:-1])          # deprecate 'Player Name' and 'BPM'
+        elif (single_file == True) and (aggregate_by == False) and (to_csv == True ) and (advanced == False):       # single file expanded case
+            agg_title = 'Expanded_Basic_boxscores_' + date.strftime('%b_%d_%Y') + '.csv'
+            self._write_csv(agg_title, ['Date', 'Team Name'] + self._general_basic_column_labels)                   # leave columns as is
+            
+        elif (single_file == True) and (aggregate_by == True) and( to_csv == True ) and (advanced == True):         # team aggregate and advanced stats case
+            agg_title = 'Team_Totals_Advanced_boxscores_' + date.strftime('%b_%d_%Y') + '.csv'
+            self._write_csv(agg_title, ['Date', 'Team Name'] + self._general_advanced_column_labels[1:][:-1])       # deprecate 'Player Name' and 'BPM'
+        elif (single_file == True) and (aggregate_by == False) and( to_csv == True ) and (advanced == True):        # single file expanded case
+            agg_title = 'Expanded_Advanced_boxscores_' + date.strftime('%b_%d_%Y') + '.csv'
+            self._write_csv(agg_title, ['Date', 'Team Name'] + self._general_advanced_column_labels)                # leave columns as is
+
+
 
         for link in boxscore_links:                     # accessing each individual boxscore page
             r = self.call_website(self.main_sites['NBA'] + link.attrs['href']).content
@@ -59,21 +82,19 @@ class SportsScraper:
             elif advanced == True:          # switch if keyword argument 'advanced' is True
                 tables = self.soup.find_all(self._get_boxscore_advanced_table)
 
-            columns = tables[0].select('thead tr [scope=col]') # grab just the column headers of the basic box score
-            column_labels = []
-            for column in columns:
-                column_labels.append(column.text)
-            column_labels = ['Player Name'] + column_labels[1:] # generating column labels for display and csv
+            #keyword argument for writing to csv. Place individual boxscores for that date in single csv if single_file == True.
+            if to_csv == True:
+                # only run if aggregate and and single file are false. They have their own name and column name convention specified above
+                if (aggregate_by == False) and (single_file == False): 
+                    if advanced == True:
+                        csv_title = 'Advanced_boxscore_' + date.strftime('%b_%d_%Y')+ '_'+ \
+                        '_'.join(team_names[0].split()) + '_' + '_'.join(team_names[1].split()) + '.csv'
+                        self._write_csv(csv_title, ['Team Name'] + self._general_advanced_column_labels)
+                    else:
+                        csv_title = 'Basic_boxscore_' + date.strftime('%b_%d_%Y') + '_' + \
+                        '_'.join(team_names[0].split()) + '_' + '_'.join(team_names[1].split()) + '.csv'
+                        self._write_csv(csv_title, ['Team Name'] + self._general_basic_column_labels)
 
-            if to_csv == True: # to_csv switch keyword argument.
-                if advanced == True:
-                    csv_title = 'Advanced_boxscore_' + date.strftime('%b_%d_%Y')+ '_'+ \
-                    '_'.join(team_names[0].split()) + '_' + '_'.join(team_names[1].split()) + '.csv'
-                else:
-                    csv_title = 'Basic_boxscore_' + date.strftime('%b_%d_%Y') + '_' + \
-                    '_'.join(team_names[0].split()) + '_' + '_'.join(team_names[1].split()) + '.csv'
-                
-                self._write_csv(csv_title, ['Team Name'] + column_labels)
 
             for pos, table in enumerate(tables):
 
@@ -82,6 +103,11 @@ class SportsScraper:
 
                 for total in totals:
                     team_totals.append(total.text)
+
+                if aggregate_by == True: # add commenting
+                    self.agg_team_totals = [date.strftime('%b-%d-%Y') ,team_names[pos]] + team_totals[1:]
+                    self._write_csv(agg_title, self.agg_team_totals)
+                    break
 
                 # generate two dimensional list 'player_data'
                 rows = table.select('tbody tr') # grabb rows within table
@@ -100,15 +126,23 @@ class SportsScraper:
                     player_data.append(building_player) # end of each loop,append to 2D matrix 'player_data'
 
                     if to_csv == True:
-                        self._write_csv(csv_title, [team_names[pos]] + building_player) # write each row to csv 
+                        if single_file == True:
+                            self._write_csv(agg_title, [date.strftime('%b-%d-%Y'), team_names[pos]] + building_player) # agg_title is a static title based on date in initial function call
+                        else:
+                            self._write_csv(csv_title, [team_names[pos]] + building_player) # csv_title rotates and is based on team matchups
 
                 # formatting and printing to the screen.
                 format_block = '{:5} '
-                formatter_string = format_block*(len(column_labels)-1) # format block multiplied out to specific number of columns.
 
                 print(team_names[pos])
 
-                print(('{:25} ' + formatter_string).format(*column_labels))
+                if advanced == False:
+                    formatter_string = format_block*(len(self._general_basic_column_labels)-1) # format block multiplied out to specific number of columns.
+                    print(('{:25} ' + formatter_string).format(*self._general_basic_column_labels))
+                else:
+                    formatter_string = format_block*(len(self._general_advanced_column_labels)-1) # format block multiplied out to specific number of columns.
+                    print(('{:25} ' + formatter_string).format(*self._general_advanced_column_labels))
+
                 for player in player_data:
                     # unpacking player information and display to screen. try/except avoids error if player DNP and info is missing.
                     try:
@@ -144,18 +178,11 @@ class SportsScraper:
         import csv
 
         if os.path.exists(file_name):
-            append_write = 'a' 
+            append_write = 'a'          # if csv file exists append to it
         else:
-            append_write = 'w' 
+            append_write = 'w'          # if not generate new one
 
         with open(file_name, append_write, newline='', encoding='utf-8') as in_file:
             csv_writer = csv.writer(in_file)
             if len(row) > 1:
                 csv_writer.writerow(row)
-
-    
-scrape2 = SportsScraper()
-scrape2.get_boxscores('Jan 13, 2018', advanced=False, to_csv=True)
-
-scrapy = SportsScraper()
-scrapy.get_boxscores('Mar 11, 2020', advanced=False, to_csv=True)
