@@ -182,7 +182,13 @@ class SportsScraper:
         else:
             append_write = 'w'          # if not generate new one
 
-        with open(file_name, append_write, newline='', encoding='utf-8') as in_file:
-            csv_writer = csv.writer(in_file)
-            if len(row) > 1:
-                csv_writer.writerow(row)
+        in_file = open(file_name, append_write, newline='', encoding='utf-8')
+        csv_writer = csv.writer(in_file)
+        if len(row) > 1:
+            csv_writer.writerow(row)
+        in_file.close()
+
+
+sport = SportsScraper()
+sport.get_boxscores('Mar 11, 2020', advanced=True, to_csv=True)
+#def get_boxscores(self, date, advanced=False, to_csv=False, single_file=False, aggregate_by=False):
