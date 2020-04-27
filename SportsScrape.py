@@ -182,7 +182,8 @@ class SportsScraper:
         else:
             append_write = 'w'          # if not generate new one
 
-        with open(file_name, append_write, newline='', encoding='utf-8') as in_file:
-            csv_writer = csv.writer(in_file)
-            if len(row) > 1:
-                csv_writer.writerow(row)
+        in_file = open(file_name, append_write, newline='', encoding='utf-8')
+        csv_writer = csv.writer(in_file)
+        if len(row) > 1:
+            csv_writer.writerow(row)
+        in_file.close()
