@@ -187,8 +187,3 @@ class SportsScraper:
         if len(row) > 1:
             csv_writer.writerow(row)
         in_file.close()
-
-
-sport = SportsScraper()
-sport.get_boxscores('Mar 11, 2020', advanced=True, to_csv=True)
-#def get_boxscores(self, date, advanced=False, to_csv=False, single_file=False, aggregate_by=False):
