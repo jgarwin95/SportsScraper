@@ -1,4 +1,10 @@
-class SportsScraper:
+from requests_html import HTML, HTMLSession
+from datetime import datetime
+from bs4 import BeautifulSoup
+import os
+import csv
+
+class SportsScraper(object):
 
     list_of_NBA_teams = ['NOH','TOR', 'BOS', 'PHI', 'BRK', 'NYK', 'DEN', 'UTA', 'OKC', 'POR', 'MIN', 'MIL', 'IND', 'CHI', 'DET', 'CLE', 'LAL', 'LAC', 'SAC', 'PHO', 'GSW', 'MIA', 'ORL', 'WAS', 'CHO', 'ATL', 'HOU', 'DAL', 'MEM', 'SAS']
     main_sites = {'NBA':'https://www.basketball-reference.com', 'NFL':'https://www.pro-football-reference.com',
@@ -6,18 +12,32 @@ class SportsScraper:
     NBA_second_option = {'Scores':'/boxscores', 'Teams':'/teams', 'Players':'/players'}
 
     def __init__(self):
-        from requests_html import HTML, HTMLSession
         '''Initialize an HTMLSession'''
         self.session = HTMLSession() 
 
     def call_website(self, link):
-        '''Receive website reponse'''
+        """Receive website reponse
+
+        Args:
+            link (str): link to get response from.
+
+        Returns:
+            Response: Response object retrieved from site.
+        """        
         return self.session.get(link)
 
     def get_boxscores(self, date, advanced=False, to_csv=False, expand_single_file=False, aggregate=False):
-        '''Retreieve advanced or basic NBA boxscores from specified date. Display scores only or display and save to CSVs'''
-        from datetime import datetime
-        from bs4 import BeautifulSoup
+        """Retreieve advanced or basic NBA boxscores from specified date. Display scores only or display and save to CSVs
+
+        Args:
+            date (str): date string of format %b %d, %Y
+            advanced (bool, optional): Provides advanced boxscores rather than basic. Defaults to False.
+            to_csv (bool, optional): If True will write to csv. Defaults to False.
+            expand_single_file (bool, optional): Writes all boxscores to single csv file rather than multiple. Defaults to False.
+            aggregate (bool, optional): Aggregates boxscore to team totals. Defaults to False.
+        """        
+        #'''Retreieve advanced or basic NBA boxscores from specified date. Display scores only or display and save to CSVs'''
+           
 
         # list of various column labels, depending on the output format chosen. 
         self._general_basic_column_labels = ['Player Name','MP','FG','FGA','FG%','3P','3PA','3P%','FT','FTA','FT%',
@@ -120,7 +140,18 @@ class SportsScraper:
                 
     @staticmethod
     def _format_csv_title(date, advanced, expand_single_file, aggregate, team_names=None):
-        #use any/all
+        """Generate the csv title depending on keyword arg inputs to get_boxscores()
+
+        Args:
+            date (datetime): datetime object 
+            advanced (bool): True if the stats to be placed in csv file are advanced rather than basic.
+            expand_single_file (bool): True if all stats are to be placed into a single csv file.
+            aggregate (bool): True if csv is to have team totals stats rather than individual stats in single file.
+            team_names (list, optional): List of team names whose stats are to be created in csv. Defaults to None.
+
+        Returns:
+            str: Unique title of csv.
+        """        
         if advanced == True:
             if aggregate == True:
                 csv_title = 'Team_Totals_Advanced_boxscores_' + date.strftime('%b_%d_%Y') + '.csv'
@@ -143,7 +174,17 @@ class SportsScraper:
 
 
     def _display_boxscore(self, pos, team_scores, team_names, meta_game_info_div, player_data, team_totals, advanced):
-        # Prints team names followed by scores with additional game meta data before displaying player stats.
+        """Prints team names followed by scores with additional game meta data before displaying player stats.
+
+        Args:
+            pos (int): index indicating which teams stats are being displayed
+            team_scores (list): list of scores
+            team_names (list): list of team names
+            meta_game_info_div (list): list containining location and time of game
+            player_data (list): player stats
+            team_totals (list): team total stats
+            advanced (bool): Whether or not advanced stats are being shown.
+        """        
         for score, name in zip(team_scores, team_names):
             print(f'{name}: {score}') 
         print()
@@ -171,30 +212,53 @@ class SportsScraper:
         print()
 
     def _boxscore_format(self, date):
-        '''Format URL ending based on date given in get_boxscores()'''
+        """Format URL ending based on date given in get_boxscores()
+
+        Args:
+            date (datetime): date of the scores being accessed
+
+        Returns:
+            str: URL ending specific for scores being accessed
+        """        
         boxscore_format = '?month=' + date.strftime('%m') + '&day=' + date.strftime('%d') + '&year=' + date.strftime('%Y')
         return self.main_sites['NBA'] + self.NBA_second_option['Scores'] + boxscore_format
 
     @staticmethod
     def _get_boxscore_basic_table(tag):
-        '''Search for specified id tag containing "basic"'''
+        """Search for specified id tag containing 'basic'
+
+        Args:
+            tag (HTML tag): list of HTML tags
+
+        Returns:
+            HTML tag: return the specific tag if found
+        """        
         tag_id = tag.get("id")
         tag_class = tag.get("class")
         return (tag_id and tag_class) and ("basic" in tag_id and "section_wrapper" in tag_class and not "toggleable" in tag_class)
 
     @staticmethod
     def _get_boxscore_advanced_table(tag):
-        '''Search for specified id tag containing "advanced"'''
+        """Search for specified id tag containing 'advanced'
+
+        Args:
+            tag (HTML tag): list of HTML tags
+
+        Returns:
+            HTML tag: return the specific tag if found
+        """    
         tag_id = tag.get("id")
         tag_class = tag.get("class")
         return (tag_id and tag_class) and ("advanced" in tag_id and "section_wrapper" in tag_class and not "toggleable" in tag_class)
 
     @staticmethod
     def _write_csv(file_name, row):
-        '''Generate new csv if none exists. Append to already existing csv'''
-        import os
-        import csv
+        """Generate new csv if none exists. Append to already existing csv
 
+        Args:
+            file_name (str): name of file to be writtin or appended to
+            row (list): list of items to be written to csv.
+        """        
         if os.path.exists(file_name):
             append_write = 'a'          # if csv file exists append to it
         else:
